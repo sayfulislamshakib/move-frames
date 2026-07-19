@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Move Frames</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: var(--figma-color-bg, #2C2C2C);
+      --card-bg: var(--figma-color-bg-secondary, #1E1E1E);
+      --input-bg: var(--figma-color-bg-secondary, #1E1E1E);
+      --border: var(--figma-color-border, #444444);
+      --border-focus: #0C8CE9;
+      --accent: var(--figma-color-bg-brand, #18A0FB);
+      --accent-hover: #0C8CE9;
+      --text: var(--figma-color-text, #FFFFFF);
+      --text-muted: var(--figma-color-text-secondary, #B3B3B3);
+      --badge-bg: var(--figma-color-bg-brand-tertiary, rgba(24, 160, 251, 0.15));
+      --badge-text: var(--figma-color-text-brand, #18A0FB);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      width: 232px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #app-wrapper {
+      width: 100%;
+      height: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Footer */
+    footer {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid var(--border);
+      background-color: rgba(23, 23, 33, 0.2);
+    }
+
+    .footer-badge {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* Main Container */
+    main {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #state-active {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+    }
+
+    /* Empty state */
+    .empty-state {
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 12px;
+      padding: 20px 10px;
+    }
+
+    .empty-state-icon {
+      width: 52px;
+      height: 52px;
+      background: var(--card-bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px dashed var(--border);
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    .empty-state-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: var(--text-muted);
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .empty-state-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .empty-state-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 210px;
+      line-height: 1.5;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); border-color: var(--border); }
+      50% { transform: scale(1.04); border-color: var(--border-focus); }
+      100% { transform: scale(1); border-color: var(--border); }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Directional D-Pad Section */
+    .dpad-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .dpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 24px);
+      grid-template-rows: repeat(3, 24px);
+      gap: 8px;
+      justify-content: center;
+      align-content: center;
+    }
+
+    .dpad-btn {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      background: var(--card-bg);
+      border: none;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .dpad-btn::after {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      right: -4px;
+      bottom: -4px;
+      border-radius: 6px;
+    }
+
+    .dpad-btn svg {
+      width: 12px;
+      height: 12px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.2s ease;
+    }
+
+    .dpad-btn:hover {
+      background: var(--accent-hover);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    .dpad-btn:hover svg {
+      transform: scale(1.1);
+    }
+
+    .dpad-btn:active {
+      transform: scale(0.95);
+    }
+
+    .dpad-center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      cursor: default;
+    }
+
+    .dpad-center svg {
+      width: 12px;
+      height: 12px;
+      stroke: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    /* Form and Configuration Controls */
+    #state-active {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* Segmented Control */
+    .segmented-control {
+      display: flex;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .segmented-control button {
+      flex: 1;
+      height: 26px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .segmented-control button.active {
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 2px 5px rgba(129, 140, 248, 0.15);
+    }
+
+
+
+    .stepper-container {
+      display: flex;
+      align-items: center;
+      border: 2px solid transparent;
+      background-color: var(--input-bg);
+      border-radius: 4px;
+      overflow: hidden;
+      height: 24px;
+      transition: border-color 0.15s ease;
+      padding-right: 8px;
+    }
+
+    .input-suffix {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .stepper-container:focus-within {
+      border-color: var(--border-focus);
+    }
+
+    .stepper-btn {
+      width: 28px;
+      height: 30px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .stepper-btn:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .stepper-input {
+      border: none;
+      text-align: left;
+      height: 100%;
+      background: transparent;
+      border-radius: 0;
+      padding: 0 4px 0 8px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      outline: none;
+    }
+
+    /* Remove standard spin buttons */
+    .stepper-input::-webkit-outer-spin-button,
+    .stepper-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .stepper-input[type=number] {
+      -moz-appearance: textfield;
+    }
+
+    /* Presets container */
+    .presets-container {
+      display: flex;
+      gap: 6px;
+    }
+
+    .preset-btn {
+      flex: 1;
+      height: 24px;
+      background-color: var(--card-bg);
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .preset-btn:hover {
+      background-color: var(--accent-hover);
+      border-color: transparent;
+      color: #fff;
+    }
+
+    /* Toggle Option Container */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 4px;
+    }
+
+    .toggle-label-container {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .toggle-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .toggle-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* Premium Toggle Switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border);
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 3px;
+      bottom: 3px;
+      background-color: var(--text-muted);
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background: var(--accent);
+      border-color: transparent;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(16px);
+      background-color: white;
+      box-shadow: 0 0 6px rgba(129, 140, 248, 0.4);
+    }
+
+
+  </style>
+</head>
+<body>
+  <div id="app-wrapper">
+    <main>
+    <!-- Empty Selection State -->
+    <div id="state-empty" class="empty-state">
+      <div class="empty-state-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="empty-state-title">Select layers</div>
+      <div class="empty-state-desc">Select layers on canvas to move.</div>
+    </div>
+
+    <!-- Active Configured State -->
+    <div id="state-active" class="hidden">
+      <!-- Directional D-Pad -->
+      <div class="dpad-section">
+        <div class="dpad-grid">
+          <!-- Row 1 -->
+          <div></div>
+          <button class="dpad-btn" id="move-up" data-dir="top" title="Move Up (ArrowUp)">
+            <svg viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>
+          </button>
+          <div></div>
+
+          <!-- Row 2 -->
+          <button class="dpad-btn" id="move-left" data-dir="left" title="Move Left (ArrowLeft)">
+            <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="dpad-center" id="dpad-center-indicator" title="Movement Status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="5" stroke-width="2.5" />
+            </svg>
+          </div>
+          <button class="dpad-btn" id="move-right" data-dir="right" title="Move Right (ArrowRight)">
+            <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+
+          <!-- Row 3 -->
+          <div></div>
+          <button class="dpad-btn" id="move-down" data-dir="bottom" title="Move Down (ArrowDown)">
+            <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div></div>
+        </div>
+      </div>
+
+
+
+      <!-- Custom Distance Inputs -->
+      <div class="control-group" id="custom-distance-container">
+        <span class="control-label">Shift Distance</span>
+        <div class="stepper-container">
+          <input type="number" class="stepper-input" id="dist-input" value="100" min="1" max="5000">
+          <span class="input-suffix">px</span>
+        </div>
+        <div class="presets-container">
+          <button type="button" class="preset-btn" data-preset="8">8px</button>
+          <button type="button" class="preset-btn" data-preset="16">16px</button>
+          <button type="button" class="preset-btn" data-preset="50">50px</button>
+          <button type="button" class="preset-btn" data-preset="100">100px</button>
+        </div>
+      </div>
+
+      <!-- Gap Input -->
+      <div class="control-group" id="gap-container">
+        <span class="control-label">Gap Spacing</span>
+        <div class="stepper-container">
+          <input type="number" class="stepper-input" id="gap-input" value="0" min="0" max="5000">
+          <span class="input-suffix">px</span>
+        </div>
+        <div class="presets-container">
+          <button type="button" class="preset-btn gap-preset-btn" data-preset="8">8px</button>
+          <button type="button" class="preset-btn gap-preset-btn" data-preset="16">16px</button>
+          <button type="button" class="preset-btn gap-preset-btn" data-preset="50">50px</button>
+          <button type="button" class="preset-btn gap-preset-btn" data-preset="100">100px</button>
+        </div>
+      </div>
+
+
+    </div>
+  </main>
+
+    <footer class="hidden">
+      <div id="selection-badge" class="footer-badge">0 selected</div>
+    </footer>
+  </div>
+
+
+
+  <script>
+
+
+    // UI Elements
+    const badge = document.getElementById('selection-badge');
+    const emptyState = document.getElementById('state-empty');
+    const activeState = document.getElementById('state-active');
+    
+    const distInput = document.getElementById('dist-input');
+    const customDistContainer = document.getElementById('custom-distance-container');
+    const dpadCenterIndicator = document.getElementById('dpad-center-indicator');
+    
+    const gapInput = document.getElementById('gap-input');
+    const footerElement = document.querySelector('footer');
+    const wrapper = document.getElementById('app-wrapper');
+
+    // Focus inputs when clicking anywhere inside the stepper-container wrapper
+    document.querySelectorAll('.stepper-container').forEach(container => {
+      container.onclick = () => {
+        container.querySelector('.stepper-input').focus();
+      };
+    });
+
+    // Select text on focus
+    distInput.addEventListener('focus', () => {
+      setTimeout(() => distInput.select(), 0);
+    });
+    gapInput.addEventListener('focus', () => {
+      setTimeout(() => gapInput.select(), 0);
+    });
+
+    // Selection changed listener from code.js
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (msg && msg.type === 'selection-changed') {
+        const count = msg.totalCount;
+        
+        // Update badge text
+        badge.innerText = `${count} selected`;
+        
+        // Toggle view states based on selection
+        if (count > 0) {
+          emptyState.classList.add('hidden');
+          activeState.classList.remove('hidden');
+          footerElement.classList.remove('hidden');
+          
+          // Visual warning color in center indicator if some nodes are nested (filtered)
+          if (msg.totalCount !== msg.topLevelCount) {
+            dpadCenterIndicator.title = `Moving ${msg.topLevelCount} top-level parents only to avoid nested double-shifting.`;
+            dpadCenterIndicator.style.color = '#F59E0B'; // Amber warn color
+          } else {
+            dpadCenterIndicator.title = `Selection active. Ready to move.`;
+            dpadCenterIndicator.style.color = 'var(--text-muted)';
+          }
+        } else {
+          emptyState.classList.remove('hidden');
+          activeState.classList.add('hidden');
+          footerElement.classList.add('hidden');
+        }
+        updateResize();
+      }
+    };
+
+
+
+    // Preset Buttons Click Handler (excluding gap presets)
+    const presetBtns = document.querySelectorAll('.preset-btn:not(.gap-preset-btn)');
+    presetBtns.forEach(btn => {
+      btn.onclick = () => {
+        distInput.value = btn.getAttribute('data-preset');
+      };
+    });
+
+    const gapPresetBtns = document.querySelectorAll('.gap-preset-btn');
+    gapPresetBtns.forEach(btn => {
+      btn.onclick = () => {
+        gapInput.value = btn.getAttribute('data-preset');
+      };
+    });
+
+    // Trigger movement function
+    function triggerMove(direction, isShiftPressed = false) {
+      // Get current custom value
+      let val = parseInt(distInput.value, 10);
+      if (isNaN(val) || val <= 0) val = 100;
+
+      // Shift key multiplies custom value by 10
+      if (isShiftPressed) {
+        val = val * 10;
+      }
+
+      // Get current gap value
+      let gapVal = parseInt(gapInput.value, 10);
+      if (isNaN(gapVal)) gapVal = 0;
+
+      parent.postMessage({
+        pluginMessage: {
+          type: 'move-nodes',
+          payload: {
+            direction: direction,
+            customValue: val,
+            gapValue: gapVal
+          }
+        }
+      }, '*');
+    }
+
+    // Directional D-Pad Click Listeners
+    document.querySelectorAll('.dpad-btn').forEach(btn => {
+      btn.onclick = (e) => {
+        const direction = btn.getAttribute('data-dir');
+        triggerMove(direction, e.shiftKey);
+      };
+    });
+
+    // Keyboard Arrow Keys Listeners
+    window.onkeydown = (e) => {
+      // Ignore key events when typing inside input boxes
+      if (document.activeElement === distInput || document.activeElement === gapInput) {
+        return;
+      }
+
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        triggerMove('top', e.shiftKey);
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        triggerMove('bottom', e.shiftKey);
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        triggerMove('left', e.shiftKey);
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        triggerMove('right', e.shiftKey);
+        e.preventDefault();
+      }
+    };
+
+    function updateResize() {
+      requestAnimationFrame(() => {
+        const height = wrapper.offsetHeight;
+        const safeHeight = Math.max(180, height);
+        parent.postMessage({
+          pluginMessage: {
+            type: 'resize',
+            height: safeHeight
+          }
+        }, '*');
+      });
+    }
+
+    // Notify backend that UI is ready & trigger initial resize
+    parent.postMessage({ pluginMessage: { type: 'ui-ready' } }, '*');
+    updateResize();
+  </script>
+</body>
+</html>
