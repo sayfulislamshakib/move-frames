@@ -505,7 +505,7 @@
       <div class="control-group" id="custom-distance-container">
         <span class="control-label">Shift Distance</span>
         <div class="stepper-container">
-          <input type="number" class="stepper-input" id="dist-input" value="100" min="1" max="5000">
+          <input type="text" class="stepper-input" id="dist-input" value="100" autocomplete="off" spellcheck="false" placeholder="e.g. 500-100">
           <span class="input-suffix">px</span>
         </div>
         <div class="presets-container">
@@ -520,7 +520,7 @@
       <div class="control-group" id="gap-container">
         <span class="control-label">Gap Spacing</span>
         <div class="stepper-container">
-          <input type="number" class="stepper-input" id="gap-input" value="0" min="0" max="5000">
+          <input type="text" class="stepper-input" id="gap-input" value="0" autocomplete="off" spellcheck="false">
           <span class="input-suffix">px</span>
         </div>
         <div class="presets-container">
@@ -565,12 +565,182 @@
       };
     });
 
+    // Safe mathematical expression evaluator (supporting +, -, *, /, (), decimals, whitespace)
+    function evaluateExpression(expr) {
+      if (typeof expr !== 'string') return NaN;
+      const clean = expr.trim();
+      if (!clean) return NaN;
+
+      // Allow only digits, operators (+, -, *, /), parentheses, dots, spaces
+      if (!/^[0-9+\-*/().\s]+$/.test(clean)) {
+        return NaN;
+      }
+
+      let pos = 0;
+      function peek() {
+        while (pos < clean.length && clean[pos] === ' ') pos++;
+        return clean[pos];
+      }
+      function get() {
+        while (pos < clean.length && clean[pos] === ' ') pos++;
+        return clean[pos++];
+      }
+
+      function parseNumber() {
+        let start = pos;
+        while (pos < clean.length && ((clean[pos] >= '0' && clean[pos] <= '9') || clean[pos] === '.')) {
+          pos++;
+        }
+        if (start === pos) return null;
+        const numStr = clean.slice(start, pos);
+        const n = parseFloat(numStr);
+        return isNaN(n) ? null : n;
+      }
+
+      function parseFactor() {
+        let ch = peek();
+        if (ch === '+') {
+          get();
+          return parseFactor();
+        }
+        if (ch === '-') {
+          get();
+          const val = parseFactor();
+          return val !== null ? -val : null;
+        }
+        if (ch === '(') {
+          get();
+          const val = parseExpr();
+          if (peek() === ')') {
+            get();
+          } else {
+            return null; // Unclosed parenthesis
+          }
+          return val;
+        }
+        return parseNumber();
+      }
+
+      function parseTerm() {
+        let val = parseFactor();
+        if (val === null) return null;
+        while (true) {
+          let ch = peek();
+          if (ch === '*') {
+            get();
+            let next = parseFactor();
+            if (next === null) return null;
+            val *= next;
+          } else if (ch === '/') {
+            get();
+            let next = parseFactor();
+            if (next === null || next === 0) return null;
+            val /= next;
+          } else {
+            break;
+          }
+        }
+        return val;
+      }
+
+      function parseExpr() {
+        let val = parseTerm();
+        if (val === null) return null;
+        while (true) {
+          let ch = peek();
+          if (ch === '+') {
+            get();
+            let next = parseTerm();
+            if (next === null) return null;
+            val += next;
+          } else if (ch === '-') {
+            get();
+            let next = parseTerm();
+            if (next === null) return null;
+            val -= next;
+          } else {
+            break;
+          }
+        }
+        return val;
+      }
+
+      const result = parseExpr();
+      while (pos < clean.length && clean[pos] === ' ') pos++;
+      if (pos < clean.length || result === null || isNaN(result)) {
+        return NaN;
+      }
+      return result;
+    }
+
+    // Resolves and formats input value (evaluating math expressions like 500-100)
+    function resolveInputValue(input, defaultValue = 100, allowZero = false) {
+      const raw = input.value.trim();
+      const evaluated = evaluateExpression(raw);
+      if (!isNaN(evaluated)) {
+        let result = Math.abs(evaluated);
+        result = Math.round(result * 100) / 100;
+        if (!allowZero && result <= 0) {
+          result = defaultValue;
+        }
+        input.value = result;
+        return result;
+      }
+
+      const fallback = parseFloat(raw);
+      if (!isNaN(fallback) && (allowZero ? fallback >= 0 : fallback > 0)) {
+        const result = Math.round(Math.abs(fallback) * 100) / 100;
+        input.value = result;
+        return result;
+      }
+
+      input.value = defaultValue;
+      return defaultValue;
+    }
+
     // Select text on focus
     distInput.addEventListener('focus', () => {
       setTimeout(() => distInput.select(), 0);
     });
     gapInput.addEventListener('focus', () => {
       setTimeout(() => gapInput.select(), 0);
+    });
+
+    // Evaluate expressions on blur
+    distInput.addEventListener('blur', () => {
+      resolveInputValue(distInput, 100, false);
+    });
+    gapInput.addEventListener('blur', () => {
+      resolveInputValue(gapInput, 0, true);
+    });
+
+    // Handle Enter and ArrowUp/Down stepper keys inside inputs
+    distInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        resolveInputValue(distInput, 100, false);
+        distInput.blur();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        let current = resolveInputValue(distInput, 100, false);
+        const step = e.shiftKey ? 10 : 1;
+        current = e.key === 'ArrowUp' ? current + step : Math.max(1, current - step);
+        distInput.value = Math.round(current * 100) / 100;
+        distInput.select();
+      }
+    });
+
+    gapInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        resolveInputValue(gapInput, 0, true);
+        gapInput.blur();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        let current = resolveInputValue(gapInput, 0, true);
+        const step = e.shiftKey ? 10 : 1;
+        current = e.key === 'ArrowUp' ? current + step : Math.max(0, current - step);
+        gapInput.value = Math.round(current * 100) / 100;
+        gapInput.select();
+      }
     });
 
     // Selection changed listener from code.js
@@ -605,8 +775,6 @@
       }
     };
 
-
-
     // Preset Buttons Click Handler (excluding gap presets)
     const presetBtns = document.querySelectorAll('.preset-btn:not(.gap-preset-btn)');
     presetBtns.forEach(btn => {
@@ -624,18 +792,16 @@
 
     // Trigger movement function
     function triggerMove(direction, isShiftPressed = false) {
-      // Get current custom value
-      let val = parseInt(distInput.value, 10);
-      if (isNaN(val) || val <= 0) val = 100;
+      // Resolve custom value (evaluates expressions like 500-100)
+      let val = resolveInputValue(distInput, 100, false);
 
       // Shift key multiplies custom value by 10
       if (isShiftPressed) {
         val = val * 10;
       }
 
-      // Get current gap value
-      let gapVal = parseInt(gapInput.value, 10);
-      if (isNaN(gapVal)) gapVal = 0;
+      // Resolve gap value
+      let gapVal = resolveInputValue(gapInput, 0, true);
 
       parent.postMessage({
         pluginMessage: {

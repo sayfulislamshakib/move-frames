@@ -54,8 +54,11 @@ figma.ui.onmessage = msg => {
         return;
       }
 
+      const val = typeof customValue === 'number' && !isNaN(customValue) ? customValue : parseFloat(customValue) || 100;
+      const gap = typeof gapValue === 'number' && !isNaN(gapValue) ? gapValue : parseFloat(gapValue) || 0;
+
       // Determine the net shift distance (subtracting gap)
-      const netDist = customValue - (gapValue || 0);
+      const netDist = val - gap;
 
       let shiftX = 0;
       let shiftY = 0;
