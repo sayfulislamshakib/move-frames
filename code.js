@@ -105,7 +105,7 @@ figma.ui.onmessage = msg => {
   }
 
   if (msg.type === 'move-nodes') {
-    const { direction, customValue, gapValue } = msg.payload;
+    const { direction, customValue, gapValue, groupMove } = msg.payload;
     const orderedNodes = getOrderedTopLevelSelection();
 
     if (orderedNodes.length === 0) {
@@ -115,8 +115,8 @@ figma.ui.onmessage = msg => {
 
     const gap = typeof gapValue === 'number' && !isNaN(gapValue) ? gapValue : parseFloat(gapValue) || 0;
 
-    // AUTO-ALIGN MODE: When 2 or more frames are selected
-    // Align all non-target frames' edges with the target frame (last selected frame)
+    // AUTO-ALIGN MODE: When 2 or more frames are selected (a target frame exists)
+    // Align non-target frames (individually or as a group) with the target frame (last selected frame)
     if (orderedNodes.length >= 2) {
       const targetNode = orderedNodes[orderedNodes.length - 1];
 
@@ -141,16 +141,70 @@ figma.ui.onmessage = msg => {
       };
 
       const targetAbs = getAbs(targetNode);
+      const validNonTargetNodes = nonTargetNodes.filter(node =>
+        !node.locked &&
+        typeof node.x === 'number' && typeof node.y === 'number' &&
+        typeof node.width === 'number' && typeof node.height === 'number'
+      );
+
+      if (validNonTargetNodes.length === 0) {
+        figma.notify('⚠️ Selected layers are locked or could not be aligned.');
+        return;
+      }
+
       let movedCount = 0;
 
-      for (let i = 0; i < nonTargetNodes.length; i++) {
-        const node = nonTargetNodes[i];
-        if (node.locked) continue;
-        if (typeof node.x !== 'number' || typeof node.y !== 'number' ||
-            typeof node.width !== 'number' || typeof node.height !== 'number') {
-          continue;
+      // GROUP MOVE SYSTEM: Move all non-target frames together as a group (preserving relative positions) to align with targetNode
+      if (groupMove) {
+        let groupMinX = Infinity;
+        let groupMinY = Infinity;
+        let groupMaxX = -Infinity;
+        let groupMaxY = -Infinity;
+
+        for (const node of validNonTargetNodes) {
+          const abs = getAbs(node);
+          if (abs.x < groupMinX) groupMinX = abs.x;
+          if (abs.y < groupMinY) groupMinY = abs.y;
+          if (abs.x + node.width > groupMaxX) groupMaxX = abs.x + node.width;
+          if (abs.y + node.height > groupMaxY) groupMaxY = abs.y + node.height;
         }
 
+        let deltaX = 0;
+        let deltaY = 0;
+
+        if (direction === 'left') {
+          deltaX = (targetAbs.x + gap) - groupMinX;
+        } else if (direction === 'right') {
+          deltaX = (targetAbs.x + targetNode.width - gap) - groupMaxX;
+        } else if (direction === 'top') {
+          deltaY = (targetAbs.y + gap) - groupMinY;
+        } else if (direction === 'bottom') {
+          deltaY = (targetAbs.y + targetNode.height - gap) - groupMaxY;
+        }
+
+        for (const node of validNonTargetNodes) {
+          try {
+            node.x += deltaX;
+            node.y += deltaY;
+            movedCount++;
+          } catch (err) {
+            console.error('Error group-aligning node:', err);
+          }
+        }
+
+        if (movedCount === 0) {
+          figma.notify('⚠️ Selected layers are locked or could not be aligned.');
+          return;
+        }
+
+        const dirCapitalized = direction.charAt(0).toUpperCase() + direction.slice(1);
+        figma.notify(`✨ ${dirCapitalized} group-aligned ${movedCount} ${movedCount === 1 ? 'layer' : 'layers'} with "${targetNode.name}"`);
+        return;
+      }
+
+      // INDIVIDUAL AUTO-ALIGN: Align each non-target frame's edge independently with the target frame
+      for (let i = 0; i < validNonTargetNodes.length; i++) {
+        const node = validNonTargetNodes[i];
         const isSameParent = node.parent === targetNode.parent;
         const nodeAbs = getAbs(node);
 
@@ -200,16 +254,16 @@ figma.ui.onmessage = msg => {
       }
 
       const dirCapitalized = direction.charAt(0).toUpperCase() + direction.slice(1);
-      if (nonTargetNodes.length === 1) {
-        figma.notify(`✨ ${dirCapitalized} aligned "${nonTargetNodes[0].name}" with "${targetNode.name}"`);
+      if (validNonTargetNodes.length === 1) {
+        figma.notify(`✨ ${dirCapitalized} aligned "${validNonTargetNodes[0].name}" with "${targetNode.name}"`);
       } else {
         figma.notify(`✨ ${dirCapitalized} aligned ${movedCount} layers with "${targetNode.name}"`);
       }
       return;
     }
 
-    // SINGLE-NODE MOVEMENT: 1 frame selected
-    // Shift the selected top-level node by shift distance (customValue - gapValue)
+    // SINGLE-NODE OR GROUP MOVEMENT: 1 frame selected, or Group Move enabled for 2+ frames
+    // Shift the selected top-level node(s) by shift distance (customValue - gapValue)
     const val = typeof customValue === 'number' && !isNaN(customValue) ? customValue : parseFloat(customValue) || 100;
     const netDist = val - gap;
 
@@ -221,6 +275,7 @@ figma.ui.onmessage = msg => {
     else if (direction === 'top') shiftY = -netDist;
     else if (direction === 'bottom') shiftY = netDist;
 
+    let movedCount = 0;
     orderedNodes.forEach(node => {
       if (node.locked) return;
       if (typeof node.x !== 'number' || typeof node.y !== 'number' ||
@@ -230,13 +285,19 @@ figma.ui.onmessage = msg => {
       try {
         node.x += shiftX;
         node.y += shiftY;
+        movedCount++;
       } catch (err) {
         console.error('Error shifting node:', err);
       }
     });
 
-    const layerWord = orderedNodes.length === 1 ? 'layer' : 'layers';
-    figma.notify(`✨ Moved ${orderedNodes.length} ${layerWord} ${direction}`);
+    if (movedCount === 0) {
+      figma.notify('⚠️ Selected layers are locked or could not be moved.');
+      return;
+    }
+
+    const layerWord = movedCount === 1 ? 'layer' : 'layers';
+    figma.notify(`✨ Moved ${movedCount} ${layerWord} ${direction}`);
   }
 
   if (msg.type === 'resize') {

@@ -453,6 +453,64 @@
     }
 
 
+    /* Group move checkbox row */
+    .group-move-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .group-move-row:hover {
+      border-color: var(--border-focus);
+    }
+
+    .group-move-checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 3px;
+      background: var(--input-bg);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .group-move-checkbox:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .group-move-checkbox:checked::after {
+      content: '';
+      width: 4px;
+      height: 7px;
+      border: solid #ffffff;
+      border-width: 0 1.8px 1.8px 0;
+      transform: rotate(45deg);
+      margin-bottom: 1px;
+    }
+
+    .group-move-label {
+      color: var(--text);
+      font-weight: 500;
+      font-size: 11px;
+      flex: 1;
+    }
+
     /* Auto-align target banner */
     .align-banner {
       display: flex;
@@ -462,7 +520,6 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 5px 8px;
-      margin-bottom: 12px;
       font-size: 11px;
       transition: all 0.2s ease;
     }
@@ -552,6 +609,12 @@
         </button>
       </div>
 
+      <!-- Group Move Checkbox (shown when 2+ layers and a target frame are selected) -->
+      <label id="group-move-row" class="group-move-row hidden" for="group-move-checkbox" title="Align non-target frames together as a group to the Target frame">
+        <input type="checkbox" id="group-move-checkbox" class="group-move-checkbox">
+        <span class="group-move-label">Group move</span>
+      </label>
+
       <!-- Directional D-Pad -->
       <div class="dpad-section">
         <div class="dpad-grid">
@@ -632,9 +695,13 @@
 
     // UI Elements
     let currentTargetName = null;
+    let currentTotalCount = 0;
+    let currentTopLevelCount = 0;
     const badge = document.getElementById('selection-badge');
     const emptyState = document.getElementById('state-empty');
     const activeState = document.getElementById('state-active');
+    const groupMoveRow = document.getElementById('group-move-row');
+    const groupMoveCheckbox = document.getElementById('group-move-checkbox');
     const alignBanner = document.getElementById('align-banner');
     const alignTargetName = document.getElementById('align-target-name');
     const swapTargetBtn = document.getElementById('swap-target-btn');
@@ -837,68 +904,92 @@
       }
     });
 
+    function renderSelectionState() {
+      const count = currentTotalCount;
+      const isMultiple = currentTopLevelCount >= 2 && Boolean(currentTargetName);
+      const isGroupMove = isMultiple && groupMoveCheckbox.checked;
+
+      // Update badge text
+      if (isMultiple) {
+        badge.innerText = isGroupMove
+          ? `${count} selected • Group move`
+          : `${count} selected • Align mode`;
+      } else {
+        badge.innerText = `${count} selected`;
+      }
+
+      // Toggle view states based on selection
+      if (count > 0) {
+        emptyState.classList.add('hidden');
+        activeState.classList.remove('hidden');
+        footerElement.classList.remove('hidden');
+
+        // Handle multiple layers (2+ with a target frame selected)
+        if (isMultiple) {
+          alignBanner.classList.remove('hidden');
+          groupMoveRow.classList.remove('hidden');
+          alignTargetName.innerText = currentTargetName;
+          alignTargetName.title = isGroupMove
+            ? `Group-aligning relative to: ${currentTargetName}`
+            : `Aligning relative to: ${currentTargetName}`;
+
+          const modePrefix = isGroupMove ? 'Group align' : 'Align';
+          moveUpBtn.title = `${modePrefix} top edges with "${currentTargetName}" (ArrowUp)`;
+          moveDownBtn.title = `${modePrefix} bottom edges with "${currentTargetName}" (ArrowDown)`;
+          moveLeftBtn.title = `${modePrefix} left edges with "${currentTargetName}" (ArrowLeft)`;
+          moveRightBtn.title = `${modePrefix} right edges with "${currentTargetName}" (ArrowRight)`;
+
+          dpadCenterIndicator.style.color = 'var(--accent)';
+          dpadCenterIndicator.title = isGroupMove
+            ? `Group-aligning to "${currentTargetName}"`
+            : `Aligning to "${currentTargetName}"`;
+
+          // Dim single-frame distance input to signal target-align / group-align mode
+          customDistContainer.style.opacity = '0.55';
+        } else {
+          alignBanner.classList.add('hidden');
+          groupMoveRow.classList.add('hidden');
+
+          moveUpBtn.title = 'Move Up (ArrowUp)';
+          moveDownBtn.title = 'Move Down (ArrowDown)';
+          moveLeftBtn.title = 'Move Left (ArrowLeft)';
+          moveRightBtn.title = 'Move Right (ArrowRight)';
+
+          customDistContainer.style.opacity = '1';
+
+          // Visual warning color in center indicator if some nodes are nested (filtered)
+          if (currentTotalCount !== currentTopLevelCount) {
+            dpadCenterIndicator.title = `Moving ${currentTopLevelCount} top-level parents only to avoid nested double-shifting.`;
+            dpadCenterIndicator.style.color = '#F59E0B'; // Amber warn color
+          } else {
+            dpadCenterIndicator.title = `Selection active. Ready to move.`;
+            dpadCenterIndicator.style.color = 'var(--text-muted)';
+          }
+        }
+      } else {
+        emptyState.classList.remove('hidden');
+        activeState.classList.add('hidden');
+        footerElement.classList.add('hidden');
+        groupMoveRow.classList.add('hidden');
+        alignBanner.classList.add('hidden');
+      }
+      updateResize();
+    }
+
+    // Group move checkbox listener
+    groupMoveCheckbox.addEventListener('change', () => {
+      groupMoveCheckbox.blur();
+      renderSelectionState();
+    });
+
     // Selection changed listener from code.js
     window.onmessage = (event) => {
       const msg = event.data.pluginMessage;
       if (msg && msg.type === 'selection-changed') {
-        const count = msg.totalCount;
+        currentTotalCount = msg.totalCount;
+        currentTopLevelCount = msg.topLevelCount;
         currentTargetName = msg.targetName;
-        
-        // Update badge text
-        if (count >= 2 && currentTargetName) {
-          badge.innerText = `${count} selected • Align mode`;
-        } else {
-          badge.innerText = `${count} selected`;
-        }
-        
-        // Toggle view states based on selection
-        if (count > 0) {
-          emptyState.classList.add('hidden');
-          activeState.classList.remove('hidden');
-          footerElement.classList.remove('hidden');
-
-          // Handle multiple layers (2+): target banner & dynamic auto-align tooltips
-          if (count >= 2 && currentTargetName) {
-            alignBanner.classList.remove('hidden');
-            alignTargetName.innerText = currentTargetName;
-            alignTargetName.title = `Aligning relative to: ${currentTargetName}`;
-
-            moveUpBtn.title = `Align top edges with "${currentTargetName}" (ArrowUp)`;
-            moveDownBtn.title = `Align bottom edges with "${currentTargetName}" (ArrowDown)`;
-            moveLeftBtn.title = `Align left edges with "${currentTargetName}" (ArrowLeft)`;
-            moveRightBtn.title = `Align right edges with "${currentTargetName}" (ArrowRight)`;
-
-            dpadCenterIndicator.style.color = 'var(--accent)';
-            dpadCenterIndicator.title = `Aligning to "${currentTargetName}"`;
-
-            // Dim single-frame distance input to signal auto-align mode
-            customDistContainer.style.opacity = '0.55';
-          } else {
-            alignBanner.classList.add('hidden');
-
-            moveUpBtn.title = 'Move Up (ArrowUp)';
-            moveDownBtn.title = 'Move Down (ArrowDown)';
-            moveLeftBtn.title = 'Move Left (ArrowLeft)';
-            moveRightBtn.title = 'Move Right (ArrowRight)';
-
-            customDistContainer.style.opacity = '1';
-
-            // Visual warning color in center indicator if some nodes are nested (filtered)
-            if (msg.totalCount !== msg.topLevelCount) {
-              dpadCenterIndicator.title = `Moving ${msg.topLevelCount} top-level parents only to avoid nested double-shifting.`;
-              dpadCenterIndicator.style.color = '#F59E0B'; // Amber warn color
-            } else {
-              dpadCenterIndicator.title = `Selection active. Ready to move.`;
-              dpadCenterIndicator.style.color = 'var(--text-muted)';
-            }
-          }
-        } else {
-          emptyState.classList.remove('hidden');
-          activeState.classList.add('hidden');
-          footerElement.classList.add('hidden');
-          alignBanner.classList.add('hidden');
-        }
-        updateResize();
+        renderSelectionState();
       }
     };
 
@@ -943,7 +1034,8 @@
           payload: {
             direction: direction,
             customValue: val,
-            gapValue: gapVal
+            gapValue: gapVal,
+            groupMove: Boolean(currentTargetName) && groupMoveCheckbox.checked
           }
         }
       }, '*');
@@ -964,8 +1056,8 @@
         return;
       }
 
-      // Ignore key events when typing inside input boxes
-      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement === distInput || document.activeElement === gapInput)) {
+      // Ignore key events when typing inside text input boxes
+      if (document.activeElement === distInput || document.activeElement === gapInput) {
         return;
       }
 
