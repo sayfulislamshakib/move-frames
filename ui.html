@@ -65,6 +65,10 @@
       font-size: 12px;
       font-weight: 500;
       color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
     }
 
     /* Main Container */
@@ -449,6 +453,74 @@
     }
 
 
+    /* Auto-align target banner */
+    .align-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 8px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      transition: all 0.2s ease;
+    }
+
+    .align-target-info {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .align-target-label {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .align-target-name {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 125px;
+    }
+
+    .swap-target-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+      margin-left: 4px;
+    }
+
+    .swap-target-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .swap-target-btn:active {
+      transform: scale(0.92);
+    }
+
+    #custom-distance-container {
+      transition: opacity 0.2s ease;
+    }
   </style>
 </head>
 <body>
@@ -467,6 +539,19 @@
 
     <!-- Active Configured State -->
     <div id="state-active" class="hidden">
+      <!-- Auto-Align Target Banner (shown when 2+ layers selected) -->
+      <div id="align-banner" class="align-banner hidden">
+        <div class="align-target-info">
+          <span class="align-target-label">Target:</span>
+          <span id="align-target-name" class="align-target-name" title="Reference layer">Frame 2</span>
+        </div>
+        <button id="swap-target-btn" class="swap-target-btn" type="button" title="Swap reference layer (X)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"/>
+          </svg>
+        </button>
+      </div>
+
       <!-- Directional D-Pad -->
       <div class="dpad-section">
         <div class="dpad-grid">
@@ -546,9 +631,18 @@
 
 
     // UI Elements
+    let currentTargetName = null;
     const badge = document.getElementById('selection-badge');
     const emptyState = document.getElementById('state-empty');
     const activeState = document.getElementById('state-active');
+    const alignBanner = document.getElementById('align-banner');
+    const alignTargetName = document.getElementById('align-target-name');
+    const swapTargetBtn = document.getElementById('swap-target-btn');
+
+    const moveUpBtn = document.getElementById('move-up');
+    const moveDownBtn = document.getElementById('move-down');
+    const moveLeftBtn = document.getElementById('move-left');
+    const moveRightBtn = document.getElementById('move-right');
     
     const distInput = document.getElementById('dist-input');
     const customDistContainer = document.getElementById('custom-distance-container');
@@ -748,31 +842,71 @@
       const msg = event.data.pluginMessage;
       if (msg && msg.type === 'selection-changed') {
         const count = msg.totalCount;
+        currentTargetName = msg.targetName;
         
         // Update badge text
-        badge.innerText = `${count} selected`;
+        if (count >= 2 && currentTargetName) {
+          badge.innerText = `${count} selected • Align mode`;
+        } else {
+          badge.innerText = `${count} selected`;
+        }
         
         // Toggle view states based on selection
         if (count > 0) {
           emptyState.classList.add('hidden');
           activeState.classList.remove('hidden');
           footerElement.classList.remove('hidden');
-          
-          // Visual warning color in center indicator if some nodes are nested (filtered)
-          if (msg.totalCount !== msg.topLevelCount) {
-            dpadCenterIndicator.title = `Moving ${msg.topLevelCount} top-level parents only to avoid nested double-shifting.`;
-            dpadCenterIndicator.style.color = '#F59E0B'; // Amber warn color
+
+          // Handle multiple layers (2+): target banner & dynamic auto-align tooltips
+          if (count >= 2 && currentTargetName) {
+            alignBanner.classList.remove('hidden');
+            alignTargetName.innerText = currentTargetName;
+            alignTargetName.title = `Aligning relative to: ${currentTargetName}`;
+
+            moveUpBtn.title = `Align top edges with "${currentTargetName}" (ArrowUp)`;
+            moveDownBtn.title = `Align bottom edges with "${currentTargetName}" (ArrowDown)`;
+            moveLeftBtn.title = `Align left edges with "${currentTargetName}" (ArrowLeft)`;
+            moveRightBtn.title = `Align right edges with "${currentTargetName}" (ArrowRight)`;
+
+            dpadCenterIndicator.style.color = 'var(--accent)';
+            dpadCenterIndicator.title = `Aligning to "${currentTargetName}"`;
+
+            // Dim single-frame distance input to signal auto-align mode
+            customDistContainer.style.opacity = '0.55';
           } else {
-            dpadCenterIndicator.title = `Selection active. Ready to move.`;
-            dpadCenterIndicator.style.color = 'var(--text-muted)';
+            alignBanner.classList.add('hidden');
+
+            moveUpBtn.title = 'Move Up (ArrowUp)';
+            moveDownBtn.title = 'Move Down (ArrowDown)';
+            moveLeftBtn.title = 'Move Left (ArrowLeft)';
+            moveRightBtn.title = 'Move Right (ArrowRight)';
+
+            customDistContainer.style.opacity = '1';
+
+            // Visual warning color in center indicator if some nodes are nested (filtered)
+            if (msg.totalCount !== msg.topLevelCount) {
+              dpadCenterIndicator.title = `Moving ${msg.topLevelCount} top-level parents only to avoid nested double-shifting.`;
+              dpadCenterIndicator.style.color = '#F59E0B'; // Amber warn color
+            } else {
+              dpadCenterIndicator.title = `Selection active. Ready to move.`;
+              dpadCenterIndicator.style.color = 'var(--text-muted)';
+            }
           }
         } else {
           emptyState.classList.remove('hidden');
           activeState.classList.add('hidden');
           footerElement.classList.add('hidden');
+          alignBanner.classList.add('hidden');
         }
         updateResize();
       }
+    };
+
+    // Swap target button click handler
+    swapTargetBtn.onclick = () => {
+      parent.postMessage({
+        pluginMessage: { type: 'swap-target' }
+      }, '*');
     };
 
     // Preset Buttons Click Handler (excluding gap presets)
@@ -825,9 +959,24 @@
 
     // Keyboard Arrow Keys Listeners
     window.onkeydown = (e) => {
-      // Ignore key events when typing inside input boxes
-      if (document.activeElement === distInput || document.activeElement === gapInput) {
+      // Ignore key events with modifier keys (Ctrl/Cmd/Alt) so standard Figma shortcuts (Ctrl+A, Ctrl+D, Ctrl+Z, etc.) work
+      if (e.ctrlKey || e.metaKey || e.altKey) {
         return;
+      }
+
+      // Ignore key events when typing inside input boxes
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement === distInput || document.activeElement === gapInput)) {
+        return;
+      }
+
+      if (e.key === 'x' || e.key === 'X') {
+        if (currentTargetName) {
+          parent.postMessage({
+            pluginMessage: { type: 'swap-target' }
+          }, '*');
+          e.preventDefault();
+          return;
+        }
       }
 
       if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
