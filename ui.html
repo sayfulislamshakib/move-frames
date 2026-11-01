@@ -910,10 +910,8 @@
       const isGroupMove = isMultiple && groupMoveCheckbox.checked;
 
       // Update badge text
-      if (isMultiple) {
-        badge.innerText = isGroupMove
-          ? `${count} selected • Group move`
-          : `${count} selected • Align mode`;
+      if (isGroupMove) {
+        badge.innerText = `${count} selected • Group move`;
       } else {
         badge.innerText = `${count} selected`;
       }
@@ -924,45 +922,44 @@
         activeState.classList.remove('hidden');
         footerElement.classList.remove('hidden');
 
-        // Handle multiple layers (2+ with a target frame selected)
         if (isMultiple) {
           alignBanner.classList.remove('hidden');
           groupMoveRow.classList.remove('hidden');
           alignTargetName.innerText = currentTargetName;
-          alignTargetName.title = isGroupMove
-            ? `Group-aligning relative to: ${currentTargetName}`
-            : `Aligning relative to: ${currentTargetName}`;
-
-          const modePrefix = isGroupMove ? 'Group align' : 'Align';
-          moveUpBtn.title = `${modePrefix} top edges with "${currentTargetName}" (ArrowUp)`;
-          moveDownBtn.title = `${modePrefix} bottom edges with "${currentTargetName}" (ArrowDown)`;
-          moveLeftBtn.title = `${modePrefix} left edges with "${currentTargetName}" (ArrowLeft)`;
-          moveRightBtn.title = `${modePrefix} right edges with "${currentTargetName}" (ArrowRight)`;
-
-          dpadCenterIndicator.style.color = 'var(--accent)';
-          dpadCenterIndicator.title = isGroupMove
-            ? `Group-aligning to "${currentTargetName}"`
-            : `Aligning to "${currentTargetName}"`;
-
-          // Dim single-frame distance input to signal target-align / group-align mode
-          customDistContainer.style.opacity = '0.55';
+          alignTargetName.title = `Reference target: ${currentTargetName}`;
         } else {
           alignBanner.classList.add('hidden');
           groupMoveRow.classList.add('hidden');
+        }
+
+        // Checked: Group Move / Target Align system active
+        if (isGroupMove) {
+          alignBanner.style.opacity = '1';
+          customDistContainer.style.opacity = '0.55';
+
+          moveUpBtn.title = `Group align top edges with "${currentTargetName}" (ArrowUp)`;
+          moveDownBtn.title = `Group align bottom edges with "${currentTargetName}" (ArrowDown)`;
+          moveLeftBtn.title = `Group align left edges with "${currentTargetName}" (ArrowLeft)`;
+          moveRightBtn.title = `Group align right edges with "${currentTargetName}" (ArrowRight)`;
+
+          dpadCenterIndicator.style.color = 'var(--accent)';
+          dpadCenterIndicator.title = `Group-aligning to "${currentTargetName}"`;
+        } else {
+          // Unchecked (or 1 frame selected): Shift Distance works
+          alignBanner.style.opacity = '0.55';
+          customDistContainer.style.opacity = '1';
 
           moveUpBtn.title = 'Move Up (ArrowUp)';
           moveDownBtn.title = 'Move Down (ArrowDown)';
           moveLeftBtn.title = 'Move Left (ArrowLeft)';
           moveRightBtn.title = 'Move Right (ArrowRight)';
 
-          customDistContainer.style.opacity = '1';
-
           // Visual warning color in center indicator if some nodes are nested (filtered)
           if (currentTotalCount !== currentTopLevelCount) {
             dpadCenterIndicator.title = `Moving ${currentTopLevelCount} top-level parents only to avoid nested double-shifting.`;
             dpadCenterIndicator.style.color = '#F59E0B'; // Amber warn color
           } else {
-            dpadCenterIndicator.title = `Selection active. Ready to move.`;
+            dpadCenterIndicator.title = `Selection active. Moving by Shift Distance.`;
             dpadCenterIndicator.style.color = 'var(--text-muted)';
           }
         }

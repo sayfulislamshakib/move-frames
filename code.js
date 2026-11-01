@@ -115,12 +115,12 @@ figma.ui.onmessage = msg => {
 
     const gap = typeof gapValue === 'number' && !isNaN(gapValue) ? gapValue : parseFloat(gapValue) || 0;
 
-    // AUTO-ALIGN MODE: When 2 or more frames are selected (a target frame exists)
-    // Align non-target frames (individually or as a group) with the target frame (last selected frame)
-    if (orderedNodes.length >= 2) {
+    // GROUP MOVE / TARGET ALIGN MODE: When 2 or more frames are selected AND Group Move checkbox is checked
+    // Keep the Target frame fixed and align all non-target frames (preserving relative positions) with the Target frame
+    if (orderedNodes.length >= 2 && groupMove) {
       const targetNode = orderedNodes[orderedNodes.length - 1];
 
-      if (typeof targetNode.x !== 'number' || typeof targetNode.y !== 'number' ||
+      if (!targetNode || typeof targetNode.x !== 'number' || typeof targetNode.y !== 'number' ||
           typeof targetNode.width !== 'number' || typeof targetNode.height !== 'number') {
         figma.notify('⚠️ Target layer does not have valid coordinates.');
         return;
@@ -152,96 +152,37 @@ figma.ui.onmessage = msg => {
         return;
       }
 
-      let movedCount = 0;
+      let groupMinX = Infinity;
+      let groupMinY = Infinity;
+      let groupMaxX = -Infinity;
+      let groupMaxY = -Infinity;
 
-      // GROUP MOVE SYSTEM: Move all non-target frames together as a group (preserving relative positions) to align with targetNode
-      if (groupMove) {
-        let groupMinX = Infinity;
-        let groupMinY = Infinity;
-        let groupMaxX = -Infinity;
-        let groupMaxY = -Infinity;
-
-        for (const node of validNonTargetNodes) {
-          const abs = getAbs(node);
-          if (abs.x < groupMinX) groupMinX = abs.x;
-          if (abs.y < groupMinY) groupMinY = abs.y;
-          if (abs.x + node.width > groupMaxX) groupMaxX = abs.x + node.width;
-          if (abs.y + node.height > groupMaxY) groupMaxY = abs.y + node.height;
-        }
-
-        let deltaX = 0;
-        let deltaY = 0;
-
-        if (direction === 'left') {
-          deltaX = (targetAbs.x + gap) - groupMinX;
-        } else if (direction === 'right') {
-          deltaX = (targetAbs.x + targetNode.width - gap) - groupMaxX;
-        } else if (direction === 'top') {
-          deltaY = (targetAbs.y + gap) - groupMinY;
-        } else if (direction === 'bottom') {
-          deltaY = (targetAbs.y + targetNode.height - gap) - groupMaxY;
-        }
-
-        for (const node of validNonTargetNodes) {
-          try {
-            node.x += deltaX;
-            node.y += deltaY;
-            movedCount++;
-          } catch (err) {
-            console.error('Error group-aligning node:', err);
-          }
-        }
-
-        if (movedCount === 0) {
-          figma.notify('⚠️ Selected layers are locked or could not be aligned.');
-          return;
-        }
-
-        const dirCapitalized = direction.charAt(0).toUpperCase() + direction.slice(1);
-        figma.notify(`✨ ${dirCapitalized} group-aligned ${movedCount} ${movedCount === 1 ? 'layer' : 'layers'} with "${targetNode.name}"`);
-        return;
+      for (const node of validNonTargetNodes) {
+        const abs = getAbs(node);
+        if (abs.x < groupMinX) groupMinX = abs.x;
+        if (abs.y < groupMinY) groupMinY = abs.y;
+        if (abs.x + node.width > groupMaxX) groupMaxX = abs.x + node.width;
+        if (abs.y + node.height > groupMaxY) groupMaxY = abs.y + node.height;
       }
 
-      // INDIVIDUAL AUTO-ALIGN: Align each non-target frame's edge independently with the target frame
-      for (let i = 0; i < validNonTargetNodes.length; i++) {
-        const node = validNonTargetNodes[i];
-        const isSameParent = node.parent === targetNode.parent;
-        const nodeAbs = getAbs(node);
+      let deltaX = 0;
+      let deltaY = 0;
 
+      if (direction === 'left') {
+        deltaX = (targetAbs.x + gap) - groupMinX;
+      } else if (direction === 'right') {
+        deltaX = (targetAbs.x + targetNode.width - gap) - groupMaxX;
+      } else if (direction === 'top') {
+        deltaY = (targetAbs.y + gap) - groupMinY;
+      } else if (direction === 'bottom') {
+        deltaY = (targetAbs.y + targetNode.height - gap) - groupMaxY;
+      }
+
+      let movedCount = 0;
+      for (const node of validNonTargetNodes) {
         try {
-          if (direction === 'left') {
-            // Align left edges: node.x aligns to targetNode.x + gap
-            if (isSameParent) {
-              node.x = targetNode.x + gap;
-            } else {
-              const desiredAbsX = targetAbs.x + gap;
-              node.x += (desiredAbsX - nodeAbs.x);
-            }
-          } else if (direction === 'right') {
-            // Align right edges: node right edge aligns to target right edge - gap
-            if (isSameParent) {
-              node.x = targetNode.x + targetNode.width - node.width - gap;
-            } else {
-              const desiredAbsX = targetAbs.x + targetNode.width - node.width - gap;
-              node.x += (desiredAbsX - nodeAbs.x);
-            }
-          } else if (direction === 'top') {
-            // Align top edges: node.y aligns to targetNode.y + gap
-            if (isSameParent) {
-              node.y = targetNode.y + gap;
-            } else {
-              const desiredAbsY = targetAbs.y + gap;
-              node.y += (desiredAbsY - nodeAbs.y);
-            }
-          } else if (direction === 'bottom') {
-            // Align bottom edges: node bottom edge aligns to target bottom edge - gap
-            if (isSameParent) {
-              node.y = targetNode.y + targetNode.height - node.height - gap;
-            } else {
-              const desiredAbsY = targetAbs.y + targetNode.height - node.height - gap;
-              node.y += (desiredAbsY - nodeAbs.y);
-            }
-          }
+          node.x += deltaX;
+          node.y += deltaY;
           movedCount++;
         } catch (err) {
           console.error('Error aligning node:', err);
@@ -257,12 +198,12 @@ figma.ui.onmessage = msg => {
       if (validNonTargetNodes.length === 1) {
         figma.notify(`✨ ${dirCapitalized} aligned "${validNonTargetNodes[0].name}" with "${targetNode.name}"`);
       } else {
-        figma.notify(`✨ ${dirCapitalized} aligned ${movedCount} layers with "${targetNode.name}"`);
+        figma.notify(`✨ ${dirCapitalized} group-aligned ${movedCount} layers with "${targetNode.name}"`);
       }
       return;
     }
 
-    // SINGLE-NODE OR GROUP MOVEMENT: 1 frame selected, or Group Move enabled for 2+ frames
+    // SHIFT DISTANCE MOVEMENT: 1 frame selected, or 2+ frames selected with Group Move unchecked
     // Shift the selected top-level node(s) by shift distance (customValue - gapValue)
     const val = typeof customValue === 'number' && !isNaN(customValue) ? customValue : parseFloat(customValue) || 100;
     const netDist = val - gap;
